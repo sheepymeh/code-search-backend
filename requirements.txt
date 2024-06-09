@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+onnx
+onnxruntime
+tokenizers
+tqdm
+hnswlib
+psutil
