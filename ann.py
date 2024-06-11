@@ -133,6 +133,3 @@ class ANNIndex:
 			os.rmdir(self.path)
 		except FileNotFoundError:
 			pass
-
-	def test(self):
-		pass

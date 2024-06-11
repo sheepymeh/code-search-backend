@@ -5,6 +5,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from download import ModelManager
 from ann import ANNIndex
+import pystray
+from PIL import Image
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=9100)
@@ -14,6 +16,21 @@ args = parser.parse_args()
 model_manager = ModelManager(os.path.join(args.storage_dir, 'models'))
 index_workspaces: dict[str, ANNIndex] = {}
 app = FastAPI()
+
+icon = pystray.Icon(
+	'Code Search Backend',
+	icon=Image.open('icon.png'),
+	menu=pystray.Menu(
+		pystray.MenuItem(
+			'Exit',
+			lambda: icon.stop()
+		)
+	)
+)
+
+def exception(status_code, detail, *args, **kwargs):
+	icon.notify(detail, title='Code Search Backend - Error')
+	return HTTPException(status_code, detail)
 
 def get_index(model_name: str, workspace_name: str) -> ANNIndex:
 	if workspace_name not in index_workspaces:
@@ -34,19 +51,24 @@ class QueryRequest(BaseModel):
 
 @app.get("/models")
 def list_models() -> dict[str, bool]:
+	icon.notify("Hello, World!")
 	return model_manager.list_models()
 
 @app.get("/{model_name}/download")
 def download_model(model_name: str):
 	try:
+		icon.notify(f"Downloading model {model_name}")
 		model_manager.download(model_name)
+		icon.notify(f"Downloaded model {model_name}")
 	except ValueError:
 		raise HTTPException(status_code=404, detail=f"Model {model_name} not found")
 
 @app.get("/{model_name}/load")
 def load_model(model_name: str):
 	try:
+		icon.notify(f"Loading model {model_name}")
 		model_manager.load_model(model_name)
+		icon.notify(f"Loaded model {model_name}")
 	except ValueError:
 		raise HTTPException(status_code=404, detail=f"Model {model_name} not found")
 
@@ -90,6 +112,12 @@ def unload_model(model_name: str) -> None:
 	except ValueError:
 		raise HTTPException(status_code=404, detail=f"Model {model_name} not loaded")
 
+def run_server(icon):
+	try:
+		uvicorn.run(app, host='127.0.0.1', port=args.port)
+	except KeyboardInterrupt:
+		icon.stop()
+
 if __name__ == "__main__":
 	import uvicorn
 	import psutil
@@ -99,4 +127,4 @@ if __name__ == "__main__":
 		p.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
 	else:
 		p.nice(5)
-	uvicorn.run(app, host='127.0.0.1', port=args.port)
+	icon.run(run_server)
