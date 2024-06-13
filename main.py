@@ -51,7 +51,6 @@ class QueryRequest(BaseModel):
 
 @app.get("/models")
 def list_models() -> dict[str, bool]:
-	icon.notify("Hello, World!")
 	return model_manager.list_models()
 
 @app.get("/{model_name}/download")
@@ -61,7 +60,7 @@ def download_model(model_name: str):
 		model_manager.download(model_name)
 		icon.notify(f"Downloaded model {model_name}")
 	except ValueError:
-		raise HTTPException(status_code=404, detail=f"Model {model_name} not found")
+		raise exception(status_code=404, detail=f"Model {model_name} not found")
 
 @app.get("/{model_name}/load")
 def load_model(model_name: str):
@@ -70,12 +69,12 @@ def load_model(model_name: str):
 		model_manager.load_model(model_name)
 		icon.notify(f"Loaded model {model_name}")
 	except ValueError:
-		raise HTTPException(status_code=404, detail=f"Model {model_name} not found")
+		raise exception(status_code=404, detail=f"Model {model_name} not found")
 
 @app.post("/{model_name}/{workspace_name}/index")
 def run_model(model_name: str, workspace_name: str, req: IndexRequest):
 	if not model_manager.istype(model_name, 'embeddings'):
-		raise HTTPException(status_code=400, detail=f"Model {model_name} not an embeddings model")
+		raise exception(status_code=400, detail=f"Model {model_name} not an embeddings model")
 
 	updated_strings = get_index(model_name, workspace_name).check_updated(req.input_labels, req.input_strings)
 	if any(updated_strings):
@@ -86,7 +85,7 @@ def run_model(model_name: str, workspace_name: str, req: IndexRequest):
 @app.post("/{model_name}/{workspace_name}/query")
 def find_neighbors(model_name: str, workspace_name: str, req: QueryRequest):
 	if not model_manager.istype(model_name, 'embeddings'):
-		raise HTTPException(status_code=400, detail=f"Model {model_name} not an embeddings model")
+		raise exception(status_code=400, detail=f"Model {model_name} not an embeddings model")
 
 	embeddings = model_manager.run_model(model_name, input_strings=req.input_strings)
 	response = get_index(model_name, workspace_name).query(embeddings, thresh=0.7)
@@ -110,9 +109,10 @@ def unload_model(model_name: str) -> None:
 	try:
 		model_manager.unload_model(model_name)
 	except ValueError:
-		raise HTTPException(status_code=404, detail=f"Model {model_name} not loaded")
+		raise exception(status_code=404, detail=f"Model {model_name} not loaded")
 
 def run_server(icon):
+	icon.visible = True
 	try:
 		uvicorn.run(app, host='127.0.0.1', port=args.port)
 	except KeyboardInterrupt:

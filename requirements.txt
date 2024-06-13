@@ -6,3 +6,4 @@ tokenizers
 tqdm
 hnswlib
 psutil
+pystray
