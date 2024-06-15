@@ -23,11 +23,14 @@ class ANNIndex:
 		path: str,
 		space: Literal['cosine', 'l2'],
 		dim: int,
+		thresh: float,
 		num_threads: int = -1
 	):
 		max_elements = 10_000
 
 		self.path = path
+		self.thresh = thresh
+
 		self.index = hnswlib.Index(space, dim)
 		self.index.set_num_threads(num_threads)
 		self.index.set_ef(10)
@@ -77,14 +80,14 @@ class ANNIndex:
 	def ids_in_file(self, file_name: str) -> list[int]:
 		return [self.label_to_id[label] for label in self.label_to_id.keys() if label.startswith(f'{file_name}:')]
 
-	def query(self, data: np.ndarray, k: int = 10, thresh: float = .5) -> list[dict[str, float]]:
+	def query(self, data: np.ndarray, k: int = 10) -> list[dict[str, float]]:
 		output = []
 		if not self.index.get_current_count():
 			return output
 
 		ids, distances = self.index.knn_query(data, k=min(k, self.index.get_current_count()))
 		for batch_ids, batch_distances in zip(ids, distances):
-			mask = batch_distances < thresh
+			mask = batch_distances < self.thresh
 			batch_ids, batch_distances = batch_ids[mask], batch_distances[mask]
 			output.append({
 				self.ids[sample_id]: float(distance)

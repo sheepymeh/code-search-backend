@@ -37,3 +37,34 @@ class JinaPipeline:
 		output = mean_pooling(preds, attention_mask)
 		output = normalize(output, axis=1)
 		return output
+
+
+class GTEModel:
+	def __init__(self, model_path):
+		self.model = onnx.load(model_path)
+		self.ort_session = ort.InferenceSession(model_path)
+
+	def predict(self, x):
+		return self.ort_session.run(None, x)[0]
+
+class GTEPipeline:
+	def __init__(self, model_path: str, tokenizer_path: str):
+		self.model = GTEModel(model_path)
+		self.tokenizer = Tokenizer.from_file(tokenizer_path)
+		self.tokenizer.enable_padding()
+
+	def predict(self, input_strings: list[str]):
+		inputs = self.tokenizer.encode_batch(input_strings)
+		input_ids = np.stack([y.ids for y in inputs])
+		attention_mask = np.stack([y.attention_mask for y in inputs])
+		token_type_ids = np.zeros_like(attention_mask)
+
+		preds = self.model.predict({
+			'input_ids': input_ids,
+			'token_type_ids': token_type_ids,
+			'attention_mask': attention_mask,
+		})
+
+		output = mean_pooling(preds, attention_mask)
+		output = normalize(output, axis=1)
+		return output

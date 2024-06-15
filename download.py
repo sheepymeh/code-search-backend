@@ -21,6 +21,8 @@ class Model:
 	name: str
 	type: Literal['embeddings']
 	files: list[str]
+	embed_dim: int
+	thresh: float
 
 class ModelManager:
 	models: dict[str, Model] = {
@@ -28,9 +30,22 @@ class ModelManager:
 			name='jina',
 			type='embeddings',
 			files=[
-			'https://huggingface.co/jinaai/jina-embeddings-v2-base-code/resolve/main/onnx/model_quantized.onnx?download=true',
-			'https://huggingface.co/jinaai/jina-embeddings-v2-base-code/resolve/main/tokenizer.json?download=true'
-		])
+				'https://huggingface.co/jinaai/jina-embeddings-v2-base-code/resolve/main/onnx/model_quantized.onnx?download=true',
+				'https://huggingface.co/jinaai/jina-embeddings-v2-base-code/resolve/main/tokenizer.json?download=true'
+			],
+			embed_dim=768,
+			thresh=.7,
+		),
+		'gte': Model(
+			name='gte',
+			type='embeddings',
+			files=[
+				'https://huggingface.co/Alibaba-NLP/gte-large-en-v1.5/resolve/main/onnx/model_int8.onnx?download=true',
+				'https://huggingface.co/Alibaba-NLP/gte-large-en-v1.5/resolve/main/tokenizer.json?download=true'
+			],
+			embed_dim=1024,
+			thresh=.8,
+		)
 	}
 
 	def __init__(self, storage_dir: str):
@@ -68,11 +83,20 @@ class ModelManager:
 		self.download(model.name)
 
 		if model.type == 'embeddings':
-			from models import JinaPipeline
-			self.loaded_models[model.name] = JinaPipeline(
-				model_path=self.relpath(model.name, 'model_quantized.onnx'),
-				tokenizer_path=self.relpath(model.name, 'tokenizer.json')
-			)
+			if model.name == 'jina':
+				from models import JinaPipeline
+				self.loaded_models[model.name] = JinaPipeline(
+					model_path=self.relpath(model.name, 'model_quantized.onnx'),
+					tokenizer_path=self.relpath(model.name, 'tokenizer.json')
+				)
+			elif model.name == 'gte':
+				from models import GTEPipeline
+				self.loaded_models[model.name] = GTEPipeline(
+					model_path=self.relpath(model.name, 'model_int8.onnx'),
+					tokenizer_path=self.relpath(model.name, 'tokenizer.json')
+				)
+			else:
+				raise ValueError(f'Model name {model.name} not found')
 		else:
 			raise ValueError(f'Model type {model.type} not found')
 

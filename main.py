@@ -7,6 +7,7 @@ from download import ModelManager
 from ann import ANNIndex
 import pystray
 from PIL import Image
+import signal
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--port', type=int, default=9100)
@@ -20,6 +21,7 @@ app = FastAPI()
 icon = pystray.Icon(
 	'Code Search Backend',
 	icon=Image.open('icon.png'),
+	title='Code Search Backend',
 	menu=pystray.Menu(
 		pystray.MenuItem(
 			'Exit',
@@ -27,6 +29,7 @@ icon = pystray.Icon(
 		)
 	)
 )
+default_exception_handler = None
 
 def exception(status_code, detail, *args, **kwargs):
 	icon.notify(detail, title='Code Search Backend - Error')
@@ -34,7 +37,13 @@ def exception(status_code, detail, *args, **kwargs):
 
 def get_index(model_name: str, workspace_name: str) -> ANNIndex:
 	if workspace_name not in index_workspaces:
-		index_workspaces[workspace_name] = ANNIndex(os.path.join(args.storage_dir, 'index', model_name, workspace_name), 'cosine', 768, 12)
+		index_workspaces[workspace_name] = ANNIndex(
+			path=os.path.join(args.storage_dir, 'index', model_name, workspace_name),
+			space='cosine',
+			dim=model_manager.models[model_name].embed_dim,
+			thresh=model_manager.models[model_name].thresh,
+			num_threads=12
+		)
 	return index_workspaces[workspace_name]
 
 @atexit.register
@@ -88,7 +97,8 @@ def find_neighbors(model_name: str, workspace_name: str, req: QueryRequest):
 		raise exception(status_code=400, detail=f"Model {model_name} not an embeddings model")
 
 	embeddings = model_manager.run_model(model_name, input_strings=req.input_strings)
-	response = get_index(model_name, workspace_name).query(embeddings, thresh=0.7)
+	response = get_index(model_name, workspace_name).query(embeddings)
+	print(response)
 	return response
 
 @app.delete("/{model_name}/{workspace_name}")
@@ -111,20 +121,17 @@ def unload_model(model_name: str) -> None:
 	except ValueError:
 		raise exception(status_code=404, detail=f"Model {model_name} not loaded")
 
-def run_server(icon):
-	icon.visible = True
-	try:
-		uvicorn.run(app, host='127.0.0.1', port=args.port)
-	except KeyboardInterrupt:
-		icon.stop()
-
 if __name__ == "__main__":
 	import uvicorn
 	import psutil
 	import os
 	p = psutil.Process(os.getpid())
+
 	if os.name == 'nt':
 		p.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)
 	else:
 		p.nice(5)
-	icon.run(run_server)
+
+	icon.run_detached()
+	import pdb; pdb.set_trace()
+	# uvicorn.run(app, host='127.0.0.1', port=args.port)
